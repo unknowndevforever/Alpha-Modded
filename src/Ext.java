@@ -157,7 +157,7 @@ public class Ext {
         writeWorld(currentSlot, current);
     }
     /** Title screen: no world, so no creative/cheats. */
-    public static void leaveWorld() { worldDir = null; current = null; creative = false; cheats = false; flying = false; httpBase = null; }
+    public static void leaveWorld() { worldDir = null; current = null; creative = false; cheats = false; flying = false; httpBase = null; WeatherFx.reset(); }
 
     // ---- sorting ----
     // The game sorts its chunk renderers with comparators that break Java's sort contract (distances change
@@ -229,6 +229,8 @@ public class Ext {
     }
 
     public static java.net.Socket connect(String host, int port, net.minecraft.client.Minecraft mc) throws IOException {
+        NetFx.mc = mc;
+        WeatherFx.reset();
         String base = HttpSocket.baseFor(host, port);
         httpBase = base;
         if (base == null) return new java.net.Socket(java.net.InetAddress.getByName(host), port);

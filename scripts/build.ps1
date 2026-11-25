@@ -14,7 +14,7 @@ New-Item -ItemType Directory -Force (Join-Path $root "dist") | Out-Null
 Push-Location (Join-Path $w "orig"); jar xf $Jar; Pop-Location
 
 # 1. new classes (Java 8 target, compiled against the original jar + real LWJGL 2)
-$src = "PoweredRail", "Ext", "CreativeScreen", "Names", "WorldsScreen", "WorldSettingsScreen", "Inv", "HttpSocket", "SkinScreen" | ForEach-Object { Join-Path $root "src\$_.java" }
+$src = "PoweredRail", "Ext", "CreativeScreen", "Names", "WorldsScreen", "WorldSettingsScreen", "Inv", "HttpSocket", "SkinScreen", "NetFx", "WeatherFx", "PacketHurt", "PacketSound", "PacketWeather" | ForEach-Object { Join-Path $root "src\$_.java" }
 javac --release 8 -Xlint:-options -nowarn -cp "$w\orig;$Lwjgl" -d "$w\build" @src
 if ($LASTEXITCODE -ne 0) { throw "javac failed" }
 

@@ -377,6 +377,65 @@ public class Patch implements Opcodes {
             }
         }));
 
+        // recreatecraft server -> client packets: 0x08 hurt, 0x3e sound, 0x46 weather (registered at the end of fn.<clinit>)
+        files.put("fn.class", run(files.get("fn.class"), cv -> new ClassVisitor(ASM9, cv) {
+            public MethodVisitor visitMethod(int ac, String n, String d, String s, String[] e) {
+                MethodVisitor mv = super.visitMethod(ac, n, d, s, e);
+                if (!n.equals("<clinit>")) return mv;
+                return new MethodVisitor(ASM9, mv) {
+                    public void visitInsn(int op) {
+                        if (op == RETURN) {
+                            Object[][] pk = { { 0x08, "PacketHurt" }, { 0x3e, "PacketSound" }, { 0x46, "PacketWeather" } };
+                            for (Object[] p : pk) {
+                                super.visitIntInsn(BIPUSH, (Integer) p[0]); super.visitLdcInsn(Type.getObjectType((String) p[1]));
+                                super.visitMethodInsn(INVOKESTATIC, "fn", "a", "(ILjava/lang/Class;)V", false); hit("fn register packet " + p[1]);
+                            }
+                        }
+                        super.visitInsn(op);
+                    }
+                };
+            }
+        }));
+        // rain: sky colour, fog colour and sky light subtraction go through WeatherFx
+        files.put("cn.class", run(files.get("cn.class"), cv -> new ClassVisitor(ASM9, cv) {
+            public MethodVisitor visitMethod(int ac, String n, String d, String s, String[] e) {
+                MethodVisitor mv = super.visitMethod(ac, n, d, s, e);
+                final String hook = n.equals("b") && d.equals("(F)Laj;") ? "sky" : n.equals("e") && d.equals("(F)Laj;") ? "fog" : n.equals("a") && d.equals("(F)I") ? "skyDark" : null;
+                if (hook == null) return mv;
+                return new MethodVisitor(ASM9, mv) {
+                    public void visitInsn(int op) {
+                        if (op == ARETURN) { super.visitMethodInsn(INVOKESTATIC, "WeatherFx", hook, "(Laj;)Laj;", false); hit("cn." + n + " rain " + hook); }
+                        if (op == IRETURN) { super.visitMethodInsn(INVOKESTATIC, "WeatherFx", hook, "(I)I", false); hit("cn." + n + " rain " + hook); }
+                        super.visitInsn(op);
+                    }
+                };
+            }
+        }));
+        // rain streaks: rendered where the world renderer checks the snow flag (cn.d) in iq.c(F)
+        files.put("iq.class", run(files.get("iq.class"), cv -> new ClassVisitor(ASM9, cv) {
+            public MethodVisitor visitMethod(int ac, String n, String d, String s, String[] e) {
+                MethodVisitor mv = super.visitMethod(ac, n, d, s, e);
+                if (!(n.equals("c") && d.equals("(F)V"))) return mv;
+                return new MethodVisitor(ASM9, mv) {
+                    public void visitFieldInsn(int op, String o, String nm, String ds) {
+                        super.visitFieldInsn(op, o, nm, ds);
+                        if (op == GETFIELD && o.equals("cn") && nm.equals("d") && ds.equals("Z")) {
+                            super.visitVarInsn(ALOAD, 0); super.visitFieldInsn(GETFIELD, "iq", "h", "Lnet/minecraft/client/Minecraft;"); super.visitVarInsn(FLOAD, 1);
+                            super.visitMethodInsn(INVOKESTATIC, "WeatherFx", "render", "(ZLnet/minecraft/client/Minecraft;F)Z", false); hit("iq.c rain render");
+                        }
+                    }
+                };
+            }
+        }));
+        // every world change (new world, disconnect, title screen) clears the weather and remembers the Minecraft instance
+        files.put("net/minecraft/client/Minecraft.class", run(files.get("net/minecraft/client/Minecraft.class"), cv -> new ClassVisitor(ASM9, cv) {
+            public MethodVisitor visitMethod(int ac, String n, String d, String s, String[] e) {
+                MethodVisitor mv = super.visitMethod(ac, n, d, s, e);
+                if (!(n.equals("a") && d.equals("(Lcn;Ljava/lang/String;)V"))) return mv;
+                return new Pre(mv) { void code() { mv.visitVarInsn(ALOAD, 0); mv.visitMethodInsn(INVOKESTATIC, "NetFx", "worldChange", "(Lnet/minecraft/client/Minecraft;)V", false); hit("Minecraft world change -> clear weather"); } };
+            }
+        }));
+
         // optional 3rd arg: textures dir -> powered rail tiles into terrain.png (tile 129 = off, 130 = on)
         if (a.length > 2) {
             var t = javax.imageio.ImageIO.read(new ByteArrayInputStream(files.get("terrain.png")));
